@@ -20,13 +20,17 @@ j=0
 k=0
 
 function check {
-if [ "$j" -eq 0 ]; then echo "NOTICE: /etc/ntp.conf was changed. Calculated diff:"; let j=1; fi
+if [ "$j" -eq 0 ]; then 
+echo "NOTICE: /etc/ntp.conf was changed. Calculated diff:" 
+echo "`ls -l --time-style=full-iso /etc/ntp.conf | awk '{print "+++ " $9 "  " $6 " " $7 " " $8}'`" 
+let j=1
+fi
 #echo `cat /etc/ntp.conf | grep -in -E "$1"` | awk -F: '{print $1}'
-echo "@@ -$2 +$2 @@"
-if [ -n "$3" ]; then echo "-"$3; fi
+echo "@@ +$2 @@"
 echo "+"$1
 }
 
+count=0;
 for var in $(cat /etc/ntp.conf | grep -in -E '^[[:blank:]]*pool')
 do
 countRows=`echo $var | awk -F: '{print $1}'`
@@ -34,20 +38,46 @@ rowsPool=`echo $var | awk -F'^[0-9]+:' '{print $2}'`
 check "$rowsPool" "$countRows"
 done
 
+b=0
+arrIndex=0;
 for var in $(cat /etc/ntp.conf | grep -in -E '^[[:blank:]]*Server')
 do
 countRows=`echo $var | awk -F: '{print $1}'`
 rows=`echo $var | awk -F'^[0-9]+:' '{print $2}'`
 varNotSpace=`echo $rows | sed 's/\s\+$//'| sed 's/^\s\+//'`
-if [ "$varNotSpace" != "${strings[$i]}" ] 2> /dev/null
+
+
+is=1
+isElse=0
+for ((index = 0; index < ${#arr[*]}; index++ ))
+do
+if [ "$varNotSpace" = "${arr[$index]}" ] 2> /dev/null
 then
-#check "$varNotSpace" "${strings[$i]}"
-check "$rows" "$countRows" "${strings[$i]}"
+is=0
+fi
+done
+
+for ((index = 0; index < ${#strings[*]}; index++ ))
+do
+if [ "$varNotSpace" = "${strings[$index]}" ] 2> /dev/null
+then
+arr[arrIndex]=$varNotSpace
+arrIndex=$(($arrIndex+1))
+isElse=1
+count=$(($count+1))
+break
+fi
+done
+
+if [ "$is" != "1" ] || [ "$isElse" != "1" ] 2> /dev/null
+then
+check "$rows" "$countRows"
 else
 let k=k+1
 fi
 let i=i+1
 done
+
 
 if [ "$j" -gt 0 ] || [ "$k" -ne 4 ]; then
 sed -i "/^[[:blank:]]*pool/d" /etc/ntp.conf 
